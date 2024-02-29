@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"context"
 	"fmt"
 
 	cmap "github.com/orcaman/concurrent-map/v2"
@@ -11,6 +12,7 @@ type Manager interface {
 }
 
 type GoRoutineManager struct {
+	ctx           context.Context
 	maxGoRoutines int
 	nameToRoutine cmap.ConcurrentMap[string, []routine]
 }
@@ -20,8 +22,9 @@ type routine struct {
 	routineFunc func()
 }
 
-func NewGoRoutineManager(maxGoRoutines int) Manager {
+func NewGoRoutineManager(ctx context.Context, maxGoRoutines int) Manager {
 	return &GoRoutineManager{
+		ctx:           ctx,
 		maxGoRoutines: maxGoRoutines,
 		nameToRoutine: cmap.New[[]routine](),
 	}

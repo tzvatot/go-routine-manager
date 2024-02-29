@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"context"
 	"fmt"
 
 	. "github.com/onsi/ginkgo/v2/dsl/core"
@@ -9,7 +10,7 @@ import (
 
 var _ = Describe("Go routine manager", func() {
 	It("Run go routine", func() {
-		mgr := NewGoRoutineManager(1)
+		mgr := NewGoRoutineManager(context.Background(), 1)
 		err := mgr.Go("1", func() {
 			fmt.Println("test")
 		})
