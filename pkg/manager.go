@@ -8,32 +8,31 @@ import (
 )
 
 type Manager interface {
-	Go(id string, f func()) error
-	Close() error
+	Go(id string, f func(stopCh <-chan struct{})) error
 }
 
 type GoRoutineManager struct {
 	ctx           context.Context
 	maxGoRoutines int
 	nameToRoutine cmap.ConcurrentMap[string, []routine]
-	stopCh        chan struct{}
+	stopCh        <-chan struct{}
 }
 
 type routine struct {
 	id          string
-	routineFunc func()
+	routineFunc func(stopCh <-chan struct{})
 }
 
-func NewGoRoutineManager(ctx context.Context, maxGoRoutines int) Manager {
+func NewGoRoutineManager(ctx context.Context, maxGoRoutines int, stopCh <-chan struct{}) Manager {
 	return &GoRoutineManager{
 		ctx:           ctx,
 		maxGoRoutines: maxGoRoutines,
 		nameToRoutine: cmap.New[[]routine](),
-		stopCh:        make(chan struct{}),
+		stopCh:        stopCh,
 	}
 }
 
-func (m *GoRoutineManager) Go(id string, routineFunc func()) error {
+func (m *GoRoutineManager) Go(id string, routineFunc func(stopCh <-chan struct{})) error {
 	newRoutine := routine{
 		id:          id,
 		routineFunc: routineFunc,
@@ -51,11 +50,6 @@ func (m *GoRoutineManager) Go(id string, routineFunc func()) error {
 
 func (m *GoRoutineManager) runRoutine(routine routine) {
 	fmt.Println("starting to run go routine id '", routine.id, "'")
-	routine.routineFunc()
+	routine.routineFunc(m.stopCh)
 	fmt.Println("completed run of go routine id '", routine.id, "'")
-}
-
-func (m *GoRoutineManager) Close() error {
-	close(m.stopCh)
-	return nil
 }
