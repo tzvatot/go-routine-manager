@@ -10,10 +10,12 @@ import (
 
 var _ = Describe("Go routine manager", func() {
 	It("Run go routine", func() {
-		mgr := NewGoRoutineManager(context.Background(), 1)
+		stopCh := make(chan struct{})
+		mgr := NewGoRoutineManager(context.Background(), 1, stopCh)
 		err := mgr.Go("1", func() {
 			fmt.Println("test")
 		})
 		Expect(err).ToNot(HaveOccurred())
+		close(stopCh)
 	})
 })
