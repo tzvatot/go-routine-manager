@@ -3,6 +3,7 @@ package pkg
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	cmap "github.com/orcaman/concurrent-map/v2"
 )
@@ -12,10 +13,11 @@ type Manager interface {
 }
 
 type GoRoutineManager struct {
-	ctx           context.Context
-	maxGoRoutines int
-	nameToRoutine cmap.ConcurrentMap[string, []routine]
-	stopCh        <-chan struct{}
+	ctx                context.Context
+	maxGoRoutines      int64
+	nameToRoutineCount cmap.ConcurrentMap[string, int64]
+	totalCount         int64
+	stopCh             <-chan struct{}
 }
 
 type routine struct {
@@ -23,30 +25,32 @@ type routine struct {
 	routineFunc func()
 }
 
-func NewGoRoutineManager(ctx context.Context, maxGoRoutines int, stopCh <-chan struct{}) Manager {
+func NewGoRoutineManager(ctx context.Context, maxGoRoutines int64, stopCh <-chan struct{}) Manager {
 	return &GoRoutineManager{
-		ctx:           ctx,
-		maxGoRoutines: maxGoRoutines,
-		nameToRoutine: cmap.New[[]routine](),
-		stopCh:        stopCh,
+		ctx:                ctx,
+		maxGoRoutines:      maxGoRoutines,
+		nameToRoutineCount: cmap.New[int64](),
+		stopCh:             stopCh,
 	}
 }
 
 func (m *GoRoutineManager) Go(id string, routineFunc func()) error {
-	if m.maxGoRoutines == m.nameToRoutine.Count() {
+	if m.maxGoRoutines <= m.totalCount {
 		return fmt.Errorf("max amount of go routine exeeded")
 	}
 	newRoutine := routine{
 		id:          id,
 		routineFunc: routineFunc,
 	}
-	routines, ok := m.nameToRoutine.Get(id)
+	count, ok := m.nameToRoutineCount.Get(id)
 	if !ok {
-		routines = append(make([]routine, 0), newRoutine)
-	} else {
-		routines = append(routines, newRoutine)
+		added := m.nameToRoutineCount.SetIfAbsent(id, 1)
+		if !added { // some other thread got to add it first
+			count, _ = m.nameToRoutineCount.Get(id) // grab the up-to-date count
+		}
 	}
-	m.nameToRoutine.Set(id, routines)
+	atomic.AddInt64(&count, 1)
+	atomic.AddInt64(&m.totalCount, 1)
 	go m.runRoutine(newRoutine)
 	return nil
 }
@@ -55,4 +59,7 @@ func (m *GoRoutineManager) runRoutine(routine routine) {
 	fmt.Println("starting to run go routine id '", routine.id, "'")
 	routine.routineFunc()
 	fmt.Println("completed run of go routine id '", routine.id, "'")
+	count, _ := m.nameToRoutineCount.Get(routine.id)
+	atomic.AddInt64(&count, -1)
+	atomic.AddInt64(&m.totalCount, -1)
 }
