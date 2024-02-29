@@ -9,12 +9,14 @@ import (
 
 type Manager interface {
 	Go(id string, f func()) error
+	Close() error
 }
 
 type GoRoutineManager struct {
 	ctx           context.Context
 	maxGoRoutines int
 	nameToRoutine cmap.ConcurrentMap[string, []routine]
+	stopCh        chan struct{}
 }
 
 type routine struct {
@@ -27,6 +29,7 @@ func NewGoRoutineManager(ctx context.Context, maxGoRoutines int) Manager {
 		ctx:           ctx,
 		maxGoRoutines: maxGoRoutines,
 		nameToRoutine: cmap.New[[]routine](),
+		stopCh:        make(chan struct{}),
 	}
 }
 
@@ -42,10 +45,17 @@ func (m *GoRoutineManager) Go(id string, routineFunc func()) error {
 		routines = append(routines, newRoutine)
 	}
 	m.nameToRoutine.Set(id, routines)
-	go func() {
-		fmt.Println("starting to run go routine id '", id, "'")
-		newRoutine.routineFunc()
-		fmt.Println("completed run of go routine id '", id, "'")
-	}()
+	go m.runRoutine(newRoutine)
+	return nil
+}
+
+func (m *GoRoutineManager) runRoutine(routine routine) {
+	fmt.Println("starting to run go routine id '", routine.id, "'")
+	routine.routineFunc()
+	fmt.Println("completed run of go routine id '", routine.id, "'")
+}
+
+func (m *GoRoutineManager) Close() error {
+	close(m.stopCh)
 	return nil
 }
