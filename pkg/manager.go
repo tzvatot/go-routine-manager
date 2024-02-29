@@ -1,6 +1,8 @@
 package pkg
 
 import (
+	"fmt"
+
 	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
@@ -37,6 +39,10 @@ func (m *GoRoutineManager) Go(id string, routineFunc func()) error {
 		routines = append(routines, newRoutine)
 	}
 	m.nameToRoutine.Set(id, routines)
-	go newRoutine.routineFunc()
+	go func() {
+		fmt.Println("starting to run go routine id '", id, "'")
+		newRoutine.routineFunc()
+		fmt.Println("completed run of go routine id '", id, "'")
+	}()
 	return nil
 }
