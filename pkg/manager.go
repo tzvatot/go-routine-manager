@@ -33,6 +33,9 @@ func NewGoRoutineManager(ctx context.Context, maxGoRoutines int, stopCh <-chan s
 }
 
 func (m *GoRoutineManager) Go(id string, routineFunc func()) error {
+	if m.maxGoRoutines == m.nameToRoutine.Count() {
+		return fmt.Errorf("max amount of go routine exeeded")
+	}
 	newRoutine := routine{
 		id:          id,
 		routineFunc: routineFunc,
